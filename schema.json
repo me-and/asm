@@ -96,7 +96,7 @@
 					"type": "object",
 					"properties": {
 						"offset": {
-							"$ref": "#/$defs/python/datetime.timedelta"
+							"$ref": "#/$defs/python/datetime/timedelta"
 						},
 						"name": {
 							"type": "string"
@@ -105,11 +105,123 @@
 					"required": ["offset"],
 					"unevaluatedProperties": false
 				}
+			},
+			"dateutil": {
+				"relativedelta": {
+					"relativedelta": {
+						"type": "object",
+						"$comment": "Automated tools MAY normalize the version specified with two datetime objects to the explicit form, normalize integer weekdays to the referenced version, and convert specified weeks, yearday and nlyeaday values in the same way that the Python dateutil does.",
+						"anyOf": [
+							{
+								"properties": {
+									"years": {
+										"type": "integer",
+										"minimum": -9999,
+										"maximum": 9999
+									},
+									"months": {
+										"type": "integer",
+										"minimum": -12,
+										"maximum": 12
+									},
+									"days": {"type": "integer"},
+									"leapdays": {"type": "integer"},
+									"weeks": {"type": "integer"},
+									"hours": {"type": "integer"},
+									"minutes": {"type": "integer"},
+									"seconds": {"type": "integer"},
+									"microseconds": {"type": "integer"},
+									"year": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 9999
+									},
+									"month": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 12
+									},
+									"day": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 31
+									},
+									"weekday": {
+										"anyOf": [
+											{"$ref": "#/$defs/python/dateutil/relativedelta/weekday"},
+											{
+												"type": "integer",
+												"minimum": 0,
+												"maximum": 6
+											}
+										]
+									},
+									"yearday": {"type": "integer"},
+									"nlyearday": {"type": "integer"},
+									"hour": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 23
+									},
+									"minute": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 59
+									},
+									"second": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 59
+									},
+									"microsecond": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 999999
+									}
+								},
+								"unevaluatedProperties": false
+							},
+							{
+								"patternProperties": {
+									"^dt[12]$": {
+										"$ref": "#/$defs/python/datetime/datetime",
+										"required": ["tzinfo"]
+									}
+								},
+								"required": ["dt1", "dt2"],
+								"unevaluatedProperties": false
+
+							},
+							{
+								"patternProperties": {
+									"^dt[12]$": {
+										"$ref": "#/$defs/python/datetime/datetime",
+										"properties": {
+											"tzinfo": false
+										}
+									}
+								},
+								"required": ["dt1", "dt2"],
+								"unevaluatedProperties": false
+
+							}
+						]
+					},
+					"weekday": {
+						"$comment": "Store as a string like that which Python's repr produces.  TODO add an alternative for storing in a more structured fashion.",
+						"type": "string",
+						"pattern": "^(MO|TU|WE|TH|FR|SA|SU)(\\([+-]?[1-9][0-9]*\\))?$"
+					}
+				},
+				"rrule": {
+					"$comment": "TODO",
+					"allOf": [false]
+				}
 			}
 		},
 		"date": {
 			"description": "Either a date object or a date string.",
-			"$comment": "Automated tools SHOULD convert the Python object to an ISO-format string for simplicity.",
+			"$comment": "Automated tools MAY convert the Python object to an ISO-format string for simplicity.",
 			"anyOf": [
 				{
 					"type": "string",
@@ -120,7 +232,7 @@
 		},
 		"datetime": {
 			"description": "Something that can be treated as a datetime object.",
-			"$comment": "Automated tools SHOULD (a) treat datetimes without a timezone as being in the system local timezone, (b) convert the python object to a string, (c) store datetimes with an explicit UTC offset, (d) store datetimes with the UTC offset they were originally specified with.",
+			"$comment": "Automated tools SHOULD (a) treat datetimes without a timezone as being in the system local timezone, (c) store datetimes with an explicit UTC offset, (d) store datetimes with the UTC offset they were originally specified with.  Automated tools MAY convert the python object to a string.",
 			"anyOf": [
 				{
 					"type": "string",
@@ -145,7 +257,7 @@
 				},
 				"state": {
 					"description": "The state the task is in.  Defaults to 'todo'.",
-					"$comment": "If this is unspecified and either it is the root task or there are descendent tasks that have this value set to 'placeholder', automated tools SHOULD populate this as 'placeholder'.  Otherwise if this is unspecified, automated tools SHOULD assume it is 'todo'.  If this is explicitly 'todo', automated tools MAY remove the explicit specification; if this is implicitly 'todo', automated tools MAY explicitly set the value.  If automated tools are changing the value between implicit and explicit 'todo' specifications, they SHOULD provide a configuration option to at least disable this behaviour, to avoid unnecessary churn for users using multiple tools.",
+					"$comment": "If this is unspecified and either (a) not root task or (b) there are descendent tasks that have this value set to 'placeholder', automated tools SHOULD populate this as 'placeholder'.  If this is the root task, automated tools MUST treat it as 'placeholder', SHOULD NOT populate it and SHOULD remove it if it is already populated.  Otherwise if this is unspecified, automated tools SHOULD assume it is 'todo'.  If this is explicitly 'todo', automated tools MAY remove the explicit specification; if this is implicitly 'todo', automated tools MAY explicitly set the value.  If automated tools are changing the value between implicit and explicit 'todo' specifications, they SHOULD provide a configuration option to at least disable this behaviour, to avoid unnecessary churn for users using multiple tools.",
 					"enum": [
 						"placeholder",
 						"todo",
@@ -170,7 +282,7 @@
 
 				"children": {
 					"description": "List of subtasks of this task.",
-					"$comment": "Automated tools SHOULD remove this element if it is empty.",
+					"$comment": "Automated tools MAY remove this element if it is empty.",
 					"type": "array",
 					"items": {"$ref": "#/$defs/task"}
 				},
@@ -201,7 +313,7 @@
 
 				"contexts": {
 					"description": "The context or contexts in which this task can be completed.",
-					"$comment": "If this is a string, automated tools SHOULD convert it to a singleton list.  If this is a list with duplicate values, automated tools should remove the duplicates.  Automated tools MAY reorder the list.",
+					"$comment": "If this is a string, automated tools MAY convert it to a singleton list.  If this is a list with duplicate values, automated tools MAY remove the duplicates.  Automated tools MAY reorder the list.",
 					"anyOf": [
 						{"type": "string"},
 						{
