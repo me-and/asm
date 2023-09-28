@@ -17,7 +17,11 @@ $defs:
   python:
     $comment: >
       These represent native Python objects, normally using the initialization
-      parameters.
+      parameters.  Where there is a standard non-Python-object way of
+      representing objects used in properties, that is also provided as an
+      alternative way to represent an object.  For example, specifying the
+      start date of a dateutil.rrule object can be done with a
+      $defs/python/datetime/datetime object, or with a $defs/datetime object.
 
       These are structured according to the import and object path.
 
@@ -30,21 +34,14 @@ $defs:
           way as the Python datetime library, or (b) perform no normalization.
         type: object
         properties:
-          weeks:
-            type: integer
-          days:
-            type: integer
-          hours:
-            type: integer
-          minutes:
-            type: integer
-          seconds:
-            type: integer
-          milliseconds:
-            type: integer
-          microseconds:
-            type: integer
-        unevaluatedProperties: false
+          weeks: {type: integer}
+          days: {type: integer}
+          hours: {type: integer}
+          minutes: {type: integer}
+          seconds: {type: integer}
+          milliseconds: {type: integer}
+          microseconds: {type: integer}
+        additionalProperties: false
 
       _date_datetime_common:
         $comment: >-
@@ -71,10 +68,7 @@ $defs:
             type: integer
             minimum: 1
             maximum: 31
-        required:
-          - year
-          - month
-          - day
+        required: [year, month, day]
 
       date:
         description: A Python datetime.date object.
@@ -122,9 +116,8 @@ $defs:
             $ref: '#/$defs/python/datetime/timedelta'
           name:
             type: string
-        required:
-          - offset
-        unevaluatedProperties: false
+        required: [offset]
+        additionalProperties: false
 
     dateutil:
 
@@ -151,20 +144,13 @@ $defs:
                   type: integer
                   minimum: -12
                   maximum: 12
-                days:
-                  type: integer
-                leapdays:
-                  type: integer
-                weeks:
-                  type: integer
-                hours:
-                  type: integer
-                minutes:
-                  type: integer
-                seconds:
-                  type: integer
-                microseconds:
-                  type: integer
+                days: {type: integer}
+                leapdays: {type: integer}
+                weeks: {type: integer}
+                hours: {type: integer}
+                minutes: {type: integer}
+                seconds: {type: integer}
+                microseconds: {type: integer}
                 year:
                   type: integer
                   minimum: 1
@@ -179,14 +165,12 @@ $defs:
                   maximum: 31
                 weekday:
                   anyOf:
-                  - $ref: '#/$defs/python/dateutil/relativedelta/weekday'
-                  - type: integer
-                    minimum: 0
-                    maximum: 6
-                yearday:
-                  type: integer
-                nlyearday:
-                  type: integer
+                    - $ref: '#/$defs/python/dateutil/relativedelta/weekday'
+                    - type: integer
+                      minimum: 0
+                      maximum: 6
+                yearday: {type: integer}
+                nlyearday: {type: integer}
                 hour:
                   type: integer
                   minimum: 0
@@ -203,29 +187,15 @@ $defs:
                   type: integer
                   minimum: 0
                   maximum: 999999
-              unevaluatedProperties: false
+              additionalProperties: false
 
-            - $comment: This version has both datetimes being aware.
-              patternProperties:
-                ^dt[12]$:
-                  $ref: '#/$defs/python/datetime/datetime'
-                  required:
-                    - tzinfo
-              required:
-                - dt1
-                - dt2
-              unevaluatedProperties: false
-
-            - $comment: This version has both times being naive.
-              patternProperties:
-                ^dt[12]$:
-                  $ref: '#/$defs/python/datetime/datetime'
-                  properties:
-                    tzinfo: false
-              required:
-                - dt1
-                - dt2
-              unevaluatedProperties: false
+            - properties:
+                dt1:
+                  $ref: '#/$defs/date-or-datetime'
+                dt2:
+                  $ref: '#/$defs/date-or-datetime'
+              required: [dt1, dt2]
+              additionalProperties: false
 
         weekday:
           # TODO: Add an alternative way of structuring this that doesn't rely
@@ -235,9 +205,209 @@ $defs:
           pattern: ^(MO|TU|WE|TH|FR|SA|SU)(\([+-]?[1-9][0-9]*\))?$
 
       rrule:
-        # TODO
-        allOf:
-          - false
+        rrule:
+          type: object
+          properties:
+            freq:  # TODO add flexibility re case?
+              enum: [YEARLY, MONTHLY, WEEKLY, HOURLY, MINUTELY, SECONDLY]
+            dtstart:
+              $ref: '#/$defs/date-or-datetime'
+            wkst:
+              anyOf:
+                - $comment: Not strictly the same, but close enough.
+                  $ref: '#/$defs/python/dateutil/relativedelta/weekday'
+                - type: integer
+                  minimum: 0
+                  maximum: 6
+            count:
+              type: integer
+              minimum: 1
+            until:
+              $ref: '#/$defs/date-or-datetime'
+            bysetpos:
+              anyOf:
+                - allOf:
+                    - not:
+                        const: 0
+                    - type: integer
+                      minimum: -366
+                      maximum: 366
+
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/bysetpos/anyOf/0'
+            bymonth:  # TODO: Allow specifying as a string?
+              anyOf:
+                - type: integer
+                  minimum: 1
+                  maximum: 12
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/bymonth/anyOf/0'
+            bymonthday:
+              anyOf:
+                - allOf:
+                    - not: {const: 0}
+                    - type: integer
+                      minimum: -31
+                      maximum: 31
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/bymonth/anyOf/0'
+            byyearday:
+              anyOf:
+                - allOf:
+                    - not: {const: 0}
+                    - type: integer
+                      minimum: -366
+                      maximum: 366
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/byyearday/anyOf/0'
+            byeaster:
+              # TODO Raise a bug report with the dateutil folks; trying to work
+              # out the valid range of values here found more problems than I'd
+              # expect!  In particular, I'd expect values that take the
+              # calculation out of the year of the Easter in question seem to
+              # be broken:
+              #
+              # >>> next(iter(rrule(freq=YEARLY, dtstart=date(2024,1,1), byeaster=275)))
+              # datetime.datetime(2024, 12, 31, 0, 0)
+              #
+              # >>> next(iter(rrule(freq=YEARLY, dtstart=date(2024,1,1), byeaster=276)))
+              # Traceback (most recent call last):
+              #   File "<stdin>", line 1, in <module>
+              #   File "/usr/lib/python3/dist-packages/dateutil/rrule.py", line 907, in _iter
+              #     ii.rebuild(year, month)
+              #   File "/usr/lib/python3/dist-packages/dateutil/rrule.py", line 1248, in rebuild
+              #     self.eastermask[eyday+offset] = 1
+              #     ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+              #   IndexError: list assignment index out of range
+              anyOf:
+                - type: integer
+                - type: array
+                  items:
+                    type: integer
+            byweekno:
+              anyOf:
+                - allOf:
+                    - not: {const: 0}
+                    - type: integer
+                      minimum: -53
+                      maximum: 53
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/byweekno/anyOf/0'
+            byweekday:
+              anyOf:
+                - anyOf:  # Nesting allows reference to this definition of the singleton.
+                    - $comment: Not strictly the same, but close enough.
+                      $ref: '#/$defs/python/dateutil/relativedelta/weekday'
+                    - type: integer
+                      minimum: 0
+                      maximum: 6
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/byweekday/anyOf/0'
+            byhour:
+              anyOf:
+                - type: integer
+                  minimum: 0
+                  maximum: 23
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/byhour/anyOf/0'
+            byminute:
+              anyOf:
+                - type: integer
+                  minimum: 0
+                  maximum: 59
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/byminute/anyOf/0'
+            bysecond:
+              anyOf:
+                - type: integer
+                  minimum: 0
+                  maximm: 59
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule/properties/bysecond/anyOf/0'
+
+          allOf:
+            - $comment: If count is specified, until can't be.
+              if:
+                required: [count]
+              then:
+                properties:
+                  until: false
+            - $comment: If until is specified, count can't be.
+              if:
+                required: [until]
+              then:
+                properties:
+                  count: false
+
+          required: [freq]
+          additionalProperties: false
+
+        rruleset:
+          type: object
+          $comment: >
+            This is really a recipe for producing a particular Python object,
+            rather than one that can be initialised directly.
+
+            If an rruleset object can be replaced with an rrule object,
+            automated tools MAY do so.
+          properties:  # TODO: check if these work with dates as well as datetimes
+            exdate:
+              anyOf:
+                - $ref: '#/$defs/datetime'
+                - type: array
+                  items:
+                    $ref: '#/$defs/datetime'
+            exrule:
+              anyOf:
+                - $ref: '#/$defs/python/dateutil/rrule/rrule'
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule'
+            rdate:
+              anyOf:
+                - $ref: '#/$defs/datetime'
+                - type: array
+                  items:
+                    $ref: '#/$defs/datetime'
+            rrule:
+              anyOf:
+                - $ref: '#/$defs/python/dateutil/rrule/rrule'
+                - type: array
+                  items:
+                    $ref: '#/$defs/python/dateutil/rrule/rrule'
+
+          additionalProperties: false
+
+        rrulestr:
+          $comment: >
+            Automated tools MAY replace this object with rrule or rruleset
+            object.  Automated tools SHOULD NOT replace rrule or rruleset
+            objects with rrulestr objects.
+
+            No validation is done of this string here; that's left entirely to
+            the user and application.
+          anyOf:
+            - type: string
+            - type: object
+              properties:
+                s: {type: string}
+                dtstart:
+                  $ref: '#/$defs/datetime'
+                unfold: {type: bool}
+                ignoretz: {type: bool}
+                tzids: true  # TODO
+                tzinfos: true  # TODO
+              required: [s]
+              additionalProperties: false
 
   date:
     description: Something that represents a specific date.
@@ -267,6 +437,11 @@ $defs:
       - type: string
         format: date-time
       - $ref: '#/$defs/python/datetime.datetime'
+
+  date-or-datetime:
+    anyOf:
+      - $ref: '#/$defs/date'
+      - $ref: '#/$defs/datetime'
 
   task:
     type: object
@@ -423,9 +598,9 @@ $defs:
           blocking multiple tasks.
         type: number
 
-    unevaluatedProperties: false
+    additionalProperties: false
 
-  state_checker:
+  state-checker:
     $comment: >-
       This exists to perform recursive validation of the state of tasks,
       ensuring that placeholder tasks only occur as children of other
@@ -438,24 +613,21 @@ $defs:
         list), the state is not required to be explicit, and the children can
         be any type of task.
       properties:
-        state:
-          const: placeholder
+        state: {const: placeholder}
         children:
           items:
             anyOf:
               - $ref: '#/$defs/state-checker/placeholder'
               - $ref: '#/$defs/state-checker/todo'
               - $ref: '#/$defs/state-checker/done-dropped'
-      required:
-        - children
+      required: [children]
 
     todo:
       $comment: >-
         Todos cannot have placeholders as children, only other todos, done or
         dropped tasks.  The todo state is not required to be explicit.
       properties:
-        state:
-          const: todo
+        state: {const: todo}
         children:
           items:
             anyOf:
@@ -473,5 +645,4 @@ $defs:
         children:
           items:
             $ref: '#/$defs/check_done_dropped_descendent_states'
-      required:
-        - state
+      required: [state]
