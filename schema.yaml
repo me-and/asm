@@ -1,0 +1,477 @@
+# This uses JSON schema, but stores it as YAML for ease of readability.
+
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://schemas.dinwoodie.org/asm.json
+
+title: Asmodeus task list
+description: ''  # TODO
+
+# The root object must be a task.  The root object must also be a placeholder
+# with appropriate children.
+allOf:
+  - $ref: '#/$defs/task'
+  - $ref: '#/$defs/state-checker/placeholder'
+
+$defs:
+
+  python:
+    $comment: >
+      These represent native Python objects, normally using the initialization
+      parameters.
+
+      These are structured according to the import and object path.
+
+    datetime:
+
+      timedelta:
+        description: A Python datetime.timedelta object.
+        $comment: >-
+          Automated tools SHOULD either (a) normalise this object in the same
+          way as the Python datetime library, or (b) perform no normalization.
+        type: object
+        properties:
+          weeks:
+            type: integer
+          days:
+            type: integer
+          hours:
+            type: integer
+          minutes:
+            type: integer
+          seconds:
+            type: integer
+          milliseconds:
+            type: integer
+          microseconds:
+            type: integer
+        unevaluatedProperties: false
+
+      _date_datetime_common:
+        $comment: >-
+          This object defines the common required fields for both datetime.date
+          and datetime.datetime objects to avoid repetition.  We can't just do
+          this in datetime.date then reference that from datetime.datetime, as
+          both datetime.date and datetime.datetime want to set
+          unevaluatedProperties to false.
+        type: object
+        properties:
+          year:
+            type: integer
+            minimum: 1
+            maximum: 9999
+          month:
+            type: integer
+            minimum: 1
+            maximum: 12
+          day:
+            $comment: >-
+              We could put in some fancier validation here, to ensure that the
+              day is valid for the given month and year, but that seems like
+              vast overkill.
+            type: integer
+            minimum: 1
+            maximum: 31
+        required:
+          - year
+          - month
+          - day
+
+      date:
+        description: A Python datetime.date object.
+        $ref: '#/$defs/python/datetime/_date_datetime_common'
+        unevaluatedProperties: false
+
+      datetime:
+        description: A Python datetime.datetime object.
+        $ref: '#/$defs/python/datetime/_date_datetime_common'
+        properties:
+          hour:
+            type: integer
+            minimum: 0
+            maximum: 23
+          minute:
+            type: integer
+            minimum: 0
+            maximum: 59
+          second:
+            type: integer
+            minimum: 0
+            maximum: 0
+          microsecond:
+            type: integer
+            minimum: 0
+            maximum: 999999
+          tzinfo:
+            $comment: >-
+              This is a stricter definition than the one that the datetime
+              module uses, since this only allows fixed offsets but the Python
+              module allows timezones like Europe/London that have variable
+              offsets over the course of the year.  Implementing the datetime
+              module's version seems
+              unnecessary.
+            $ref: '#/$defs/python/datetime/timezone'
+          fold:
+            enum: [0, 1]
+        unevaluatedProperties: false
+
+      timezone:
+        description: A Python datetime.timezone object.
+        type: object
+        properties:
+          offset:
+            $ref: '#/$defs/python/datetime/timedelta'
+          name:
+            type: string
+        required:
+          - offset
+        unevaluatedProperties: false
+
+    dateutil:
+
+      relativedelta:
+
+        relativedelta:
+          type: object
+          $comment: Automated tools MAY normalize the version specified with two datetime
+            objects to the explicit form, normalize integer weekdays to the referenced
+            version, and convert specified weeks, yearday and nlyeaday values in the
+            same way that the Python dateutil does.
+
+            This schema validates that relativedeltas specified with two
+            datetime objects are either both naive or both aware.
+
+          anyOf:
+            - $comment: This is expected to be the mainline case for relativedelta.
+              properties:
+                years:
+                  type: integer
+                  minimum: -9999
+                  maximum: 9999
+                months:
+                  type: integer
+                  minimum: -12
+                  maximum: 12
+                days:
+                  type: integer
+                leapdays:
+                  type: integer
+                weeks:
+                  type: integer
+                hours:
+                  type: integer
+                minutes:
+                  type: integer
+                seconds:
+                  type: integer
+                microseconds:
+                  type: integer
+                year:
+                  type: integer
+                  minimum: 1
+                  maximum: 9999
+                month:
+                  type: integer
+                  minimum: 1
+                  maximum: 12
+                day:
+                  type: integer
+                  minimum: 1
+                  maximum: 31
+                weekday:
+                  anyOf:
+                  - $ref: '#/$defs/python/dateutil/relativedelta/weekday'
+                  - type: integer
+                    minimum: 0
+                    maximum: 6
+                yearday:
+                  type: integer
+                nlyearday:
+                  type: integer
+                hour:
+                  type: integer
+                  minimum: 0
+                  maximum: 23
+                minute:
+                  type: integer
+                  minimum: 0
+                  maximum: 59
+                second:
+                  type: integer
+                  minimum: 0
+                  maximum: 59
+                microsecond:
+                  type: integer
+                  minimum: 0
+                  maximum: 999999
+              unevaluatedProperties: false
+
+            - $comment: This version has both datetimes being aware.
+              patternProperties:
+                ^dt[12]$:
+                  $ref: '#/$defs/python/datetime/datetime'
+                  required:
+                    - tzinfo
+              required:
+                - dt1
+                - dt2
+              unevaluatedProperties: false
+
+            - $comment: This version has both times being naive.
+              patternProperties:
+                ^dt[12]$:
+                  $ref: '#/$defs/python/datetime/datetime'
+                  properties:
+                    tzinfo: false
+              required:
+                - dt1
+                - dt2
+              unevaluatedProperties: false
+
+        weekday:
+          # TODO: Add an alternative way of structuring this that doesn't rely
+          # on string parsing.
+          $comment: Store as a string like that which Python's repr produces.
+          type: string
+          pattern: ^(MO|TU|WE|TH|FR|SA|SU)(\([+-]?[1-9][0-9]*\))?$
+
+      rrule:
+        # TODO
+        allOf:
+          - false
+
+  date:
+    description: Something that represents a specific date.
+    $comment: >-
+      Automated tools MAY convert the Python object to an ISO-format string.
+    anyOf:
+      - type: string
+        format: date
+      - $ref: '#/$defs/python/datetime/date'
+
+  datetime:
+    description: Something that represents a specific date and time.
+    $comment: >
+      Automated tools SHOULD:
+
+      - Treat datetimes without a timezone as being in the system local
+      timezone.
+
+      - Store datetimes with an explicit UTC offset.
+
+      - Not change the UTC offset for existing datetimes.
+
+      Automated tools MAY convert the Python object version of this object to
+      an ISO-format string.
+
+    anyOf:
+      - type: string
+        format: date-time
+      - $ref: '#/$defs/python/datetime.datetime'
+
+  task:
+    type: object
+    properties:
+
+      title:
+        description: Title of the task.
+        type: string
+
+      id:
+        description: Unique ID for the task.
+        $comment: >-
+          Automated tools SHOULD populate this if it isn't already specified,
+          and MAY use any valid mechanism for doing so.
+        type: string
+        format: uuid
+
+      state:
+        description: The state the task is in.
+        $comment: >
+          If this is not specified explicitly, automated tools MUST assume the
+          value as follows:
+
+          - If this is the root task, it is a placeholder.
+
+          - If this is a task that has children and any of the children are
+          (implicitly or explicitly) placeholders, this task is a placeholder.
+
+          - Otherwise, this task is a todo.
+
+          As to automated tools changing between implicit and explicit
+          specification of this value:
+
+          - If this is the root task, tools SHOULD remove the value.
+
+          - If this is an implicit placeholder other than the root task, tools
+          SHOULD record the state explicitly.
+
+          - Otherwise, tools MAY change between implicit and explicit todo
+          states, but tools that make such changes SHOULD make it possible to
+          disable making such changes automatically, and MAY make it
+          configurable what sort of changes they make.
+
+        enum: [placeholder, todo, done, dropped]
+
+      created:
+        description: The date and time the task was created.
+        $comment: >-
+          Automated tools SHOULD set this if it is unset to any reasonable
+          value, typically either the current time or -- if the data is read
+          from a file -- the last modification time of that file.
+        $ref: '#/$defs/datetime'
+
+      due:
+        description: >-
+          The date or date and time when the task is due.  Dates without a time
+          are assumed to be due by the end of that day.
+        type: string
+        anyOf:
+          - $ref: '#/$defs/datetime'
+          - $ref: '#/$defs/date'
+
+      children:
+        description: List of subtasks of this task.
+        $comment: >-
+          Automated tools MAY remove this element if it is empty.  If this
+          object is a single task rather than an array of tasks, automated
+          tools SHOULD convert it to a singleton array.  Automated tools MAY
+          reorder elements of the array.
+        anyOf:
+          - type: array
+            items:
+              $ref: '#/$defs/task'
+          - $ref: '#/$defs/task'
+
+      requires:
+        description: List of task IDs that must be completed before this task.
+        $comment: >-
+          Automated tools MAY remove this element if it is empty.  If this
+          object is a single ID rather than an array of IDs, automated tools
+          SHOULD convert it to a singleton array.  If the array contains
+          duplicates, automated tools SHOULD remove those duplicates.
+          Automated tools MAY reorder elements in the array.
+        anyOf:
+          - type: array
+            items:
+              type: string
+              format: uuid
+          - type: string
+            format: uuid
+
+      blocks:
+        description: List of task IDs that cannot be completed before this task.
+        $comment: >-
+          Automated tools MAY normalise tasks by removing this property and
+          instead populating the 'requires' properties on the referenced tasks.
+          Automated tools SHOULD NOT normalise tasks in the inverse fashion.
+          Automated tools MAY remove this element if it is empty.  If it
+          contains a single ID, automated tools SHOULD convert it to a
+          singleton array.  If the array contains duplicates, automated tools
+          SHOULD remove those duplicates.  Automated tools MAY reorder elements
+          in the array.
+        anyOf:
+          - type: array
+            items:
+              type: string
+              format: uuid
+          - type: string
+            format: uuid
+
+      notes:
+        description: Notes attached to the task.
+        $comment: >-
+          Automated tools SHOULD NOT make any assumptions about the content of
+          this property.
+        type: string
+
+      contexts:
+        description: The context or contexts in which this task can be completed.
+        $comment: If this is a string, automated tools MAY convert it to a singleton
+          list.  If this is a list with duplicate values, automated tools MAY remove
+          the duplicates.  Automated tools MAY reorder the list.
+        anyOf:
+          - type: array
+            items:
+              type: string
+          - type: string
+
+      base_urgency:
+        description: The starting urgency score for the task.
+        type: number
+
+      age_urgency_factor:
+        description: The amount the urgency increases each day.
+        type: number
+
+      age_urgency_max:
+        description: The maximum amount the urgency can be increased by due to task
+          age.
+        type: number
+
+      blocking_any_urgency_factor:
+        description: The amount the urgency is increased by if this task is a blocking
+          task.
+        type: number
+
+      blocking_each_urgency_factor:
+        description: The amount the urgency is increased by for each task this task
+          is blocking.
+        type: number
+
+      blocking_each_urgency_max:
+        description: The maximum amount the urgency can be increased by because of
+          blocking multiple tasks.
+        type: number
+
+    unevaluatedProperties: false
+
+  state_checker:
+    $comment: >-
+      This exists to perform recursive validation of the state of tasks,
+      ensuring that placeholder tasks only occur as children of other
+      placeholder tasks, and todo tasks never occur as children of done or
+      dropped tasks.
+
+    placeholder:
+      $comment: >-
+        Placeholders must have a list of children (although it can be an empty
+        list), the state is not required to be explicit, and the children can
+        be any type of task.
+      properties:
+        state:
+          const: placeholder
+        children:
+          items:
+            anyOf:
+              - $ref: '#/$defs/state-checker/placeholder'
+              - $ref: '#/$defs/state-checker/todo'
+              - $ref: '#/$defs/state-checker/done-dropped'
+      required:
+        - children
+
+    todo:
+      $comment: >-
+        Todos cannot have placeholders as children, only other todos, done or
+        dropped tasks.  The todo state is not required to be explicit.
+      properties:
+        state:
+          const: todo
+        children:
+          items:
+            anyOf:
+              - $ref: '#/$defs/state-checker/todo'
+              - $ref: '#/$defs/state-checker/done-dropped'
+
+    done-dropped:
+      $comment: >-
+        Done or dropped tasks must only have other done or dropped tasks as
+        children; users must either complete or drop child tasks before they
+        can complete or drop the parent task.  The state must be explicit.
+      properties:
+        state:
+          enum: [done, dropped]
+        children:
+          items:
+            $ref: '#/$defs/check_done_dropped_descendent_states'
+      required:
+        - state
