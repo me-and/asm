@@ -6,11 +6,40 @@ $id: https://schemas.dinwoodie.org/asm.json
 title: Asmodeus task list
 description: ''  # TODO
 
-# The root object must be a task.  The root object must also be a placeholder
-# with appropriate children.
-allOf:
-  - $ref: '#/$defs/task'
-  - $ref: '#/$defs/state-checker/placeholder'
+$comment: >-
+  Canonical form for the root object is an object, but it's acceptable for
+  input to be a task or list of tasks.
+
+anyOf:
+  - type: object
+    properties:
+      defaults:
+        type: object
+        properties:
+          baseUrgency:
+            description: The starting urgency for any task.
+            type: number
+            default: 0
+          ageUrgencyFactor:
+            description: The amount the urgency increases each day.
+            type: number
+            default: 1
+          ageUrgencyMax:
+            description: >-
+              The maximum amount the urgency can be increased by due to age.
+            type: [number, 'null']
+            default: null
+      tasks:
+        $comment: The canonical form is a list of tasks.
+        type: array
+        items:
+          allOf:
+            - $ref: '#/$defs/task'
+            - anyOf:
+                - $ref: '#/$defs/stateChecker/doneOrDropped'
+                - $ref: '#/$defs/stateChecker/todo'
+                - $ref: '#/$defs/stateChecker/placeholder'
+    required: [tasks]
 
 $defs:
 
@@ -28,10 +57,6 @@ $defs:
     datetime:
 
       timedelta:
-        description: A Python datetime.timedelta object.
-        $comment: >-
-          Automated tools SHOULD either (a) normalise this object in the same
-          way as the Python datetime library, or (b) perform no normalization.
         type: object
         properties:
           weeks: {type: integer}
@@ -43,7 +68,7 @@ $defs:
           microseconds: {type: integer}
         additionalProperties: false
 
-      _date_datetime_common:
+      _dateDatetimeCommon:
         $comment: >-
           This object defines the common required fields for both datetime.date
           and datetime.datetime objects to avoid repetition.  We can't just do
@@ -71,13 +96,11 @@ $defs:
         required: [year, month, day]
 
       date:
-        description: A Python datetime.date object.
-        $ref: '#/$defs/python/datetime/_date_datetime_common'
+        $ref: '#/$defs/python/datetime/_dateDatetimeCommon'
         unevaluatedProperties: false
 
       datetime:
-        description: A Python datetime.datetime object.
-        $ref: '#/$defs/python/datetime/_date_datetime_common'
+        $ref: '#/$defs/python/datetime/_dateDatetimeCommon'
         properties:
           hour:
             type: integer
@@ -101,21 +124,18 @@ $defs:
               module uses, since this only allows fixed offsets but the Python
               module allows timezones like Europe/London that have variable
               offsets over the course of the year.  Implementing the datetime
-              module's version seems
-              unnecessary.
+              module's version seems unnecessary.
             $ref: '#/$defs/python/datetime/timezone'
           fold:
             enum: [0, 1]
         unevaluatedProperties: false
 
       timezone:
-        description: A Python datetime.timezone object.
         type: object
         properties:
           offset:
             $ref: '#/$defs/python/datetime/timedelta'
-          name:
-            type: string
+          name: {type: string}
         required: [offset]
         additionalProperties: false
 
@@ -125,17 +145,8 @@ $defs:
 
         relativedelta:
           type: object
-          $comment: Automated tools MAY normalize the version specified with two datetime
-            objects to the explicit form, normalize integer weekdays to the referenced
-            version, and convert specified weeks, yearday and nlyeaday values in the
-            same way that the Python dateutil does.
-
-            This schema validates that relativedeltas specified with two
-            datetime objects are either both naive or both aware.
-
           anyOf:
-            - $comment: This is expected to be the mainline case for relativedelta.
-              properties:
+            - properties:
                 years:
                   type: integer
                   minimum: -9999
@@ -191,9 +202,9 @@ $defs:
 
             - properties:
                 dt1:
-                  $ref: '#/$defs/date-or-datetime'
+                  $ref: '#/$defs/dateOrDatetime'
                 dt2:
-                  $ref: '#/$defs/date-or-datetime'
+                  $ref: '#/$defs/dateOrDatetime'
               required: [dt1, dt2]
               additionalProperties: false
 
@@ -209,9 +220,9 @@ $defs:
           type: object
           properties:
             freq:  # TODO add flexibility re case?
-              enum: [YEARLY, MONTHLY, WEEKLY, HOURLY, MINUTELY, SECONDLY]
+              enum: [YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY, SECONDLY]
             dtstart:
-              $ref: '#/$defs/date-or-datetime'
+              $ref: '#/$defs/dateOrDatetime'
             wkst:
               anyOf:
                 - $comment: Not strictly the same, but close enough.
@@ -223,7 +234,7 @@ $defs:
               type: integer
               minimum: 1
             until:
-              $ref: '#/$defs/date-or-datetime'
+              $ref: '#/$defs/dateOrDatetime'
             bysetpos:
               anyOf:
                 - allOf:
@@ -353,12 +364,9 @@ $defs:
 
         rruleset:
           type: object
-          $comment: >
+          $comment: >-
             This is really a recipe for producing a particular Python object,
             rather than one that can be initialised directly.
-
-            If an rruleset object can be replaced with an rrule object,
-            automated tools MAY do so.
           properties:  # TODO: check if these work with dates as well as datetimes
             exdate:
               anyOf:
@@ -368,10 +376,10 @@ $defs:
                     $ref: '#/$defs/datetime'
             exrule:
               anyOf:
-                - $ref: '#/$defs/python/dateutil/rrule/rrule'
+                - $ref: '#/$defs/recurringDatetime'
                 - type: array
                   items:
-                    $ref: '#/$defs/python/dateutil/rrule/rrule'
+                    $ref: '#/$defs/recurringDatetime'
             rdate:
               anyOf:
                 - $ref: '#/$defs/datetime'
@@ -380,21 +388,15 @@ $defs:
                     $ref: '#/$defs/datetime'
             rrule:
               anyOf:
-                - $ref: '#/$defs/python/dateutil/rrule/rrule'
+                - $ref: '#/$defs/recurringDatetime'
                 - type: array
                   items:
-                    $ref: '#/$defs/python/dateutil/rrule/rrule'
+                    $ref: '#/$defs/recurringDatetime'
 
           additionalProperties: false
 
         rrulestr:
-          $comment: >
-            Automated tools MAY replace this object with rrule or rruleset
-            object.  Automated tools SHOULD NOT replace rrule or rruleset
-            objects with rrulestr objects.
-
-            No validation is done of this string here; that's left entirely to
-            the user and application.
+          $comment: No validation is done of this string as part of the schema.
           anyOf:
             - type: string
             - type: object
@@ -410,197 +412,428 @@ $defs:
               additionalProperties: false
 
   date:
-    description: Something that represents a specific date.
-    $comment: >-
-      Automated tools MAY convert the Python object to an ISO-format string.
     anyOf:
       - type: string
         format: date
       - $ref: '#/$defs/python/datetime/date'
 
   datetime:
-    description: Something that represents a specific date and time.
-    $comment: >
-      Automated tools SHOULD:
-
-      - Treat datetimes without a timezone as being in the system local
-      timezone.
-
-      - Store datetimes with an explicit UTC offset.
-
-      - Not change the UTC offset for existing datetimes.
-
-      Automated tools MAY convert the Python object version of this object to
-      an ISO-format string.
-
+    $comment: >-
+      If the Python object form is used, naive objects should be assumed to be
+      in the local timezone.
     anyOf:
       - type: string
         format: date-time
       - $ref: '#/$defs/python/datetime.datetime'
 
-  date-or-datetime:
+  dateOrDatetime:
     anyOf:
       - $ref: '#/$defs/date'
       - $ref: '#/$defs/datetime'
+
+  duration:
+    anyOf:
+      - type: string
+        format: duration
+      - $ref: '#/$defs/python/datetime/timedelta'
+      - $ref: '#/$defs/python/dateutil/relativedelta/relativedelta'
+
+  durationWholeDays:
+    $ref: '#/$defs/duration'
+    # It's either a string or a Python object.  If it's a string, use a regular
+    # expression to check it only contains whole days (it's safe to assume the
+    # string is a valid duration in general).  If it's a Python object check it
+    # doesn't have any properties that might change non-whole-day values.
+    anyOf:
+      - type: string
+        pattern: ^P[0-9DWMY]*$
+      - type: object
+        properties:
+          hours: {const: 0}
+          minutes: {const: 0}
+          seconds: {const: 0}
+          microseconds: {const: 0}
+          hour: false
+          minute: false
+          second: false
+          microsecond: false
+
+  recurringDatetime:
+    anyOf:
+      - $ref: '#/$defs/python/dateutil/rrule/rrule'
+      - $ref: '#/$defs/python/dateutil/rrule/rruleset'
+      - $ref: '#/$defs/python/dateutil/rrule/rrulestr'
+      - type: object
+        properties:
+          first:
+            $ref: '#/$defs/datetime'
+          recurEvery:
+            $ref: '#/$defs/duration'
+        required: [first, recurEvery]
+        additionalProperties: false
+
+  recurringDate:
+    $comment: >-
+      The rrulestr format is forbidden for now, as I don't know how to validate
+      that it doesn't include times.
+    anyOf:
+      - $ref: '#/$defs/python/dateutil/rrule/rrule'
+        properties:
+          freq:
+            enum: [YEARLY, MONTHLY, WEEKLY, DAILY]
+          dtstart:
+            $ref: '#/$defs/date'
+          byhour: {const: 0}
+          byminute: {const: 0}
+          bysecond: {const: 0}
+        anyOf:
+          - required: [dtstart]
+          - required: [byhour, byminute, bysecond]
+      - $ref: '#/$defs/python/dateutil/rrule/rruleset'
+        properties:
+          exdate:
+            anyOf:
+              - $ref: '#/$defs/date'
+              - type: array
+                items:
+                  $ref: '#/$defs/date'
+          exrule:
+            anyOf:
+              - $ref: '#/$defs/recurringDate'
+              - type: array
+                items:
+                  $ref: '#/$defs/recurringDate'
+          rdate:
+            anyOf:
+              - $ref: '#/$defs/date'
+              - type: array
+                items:
+                  $ref: '#/$defs/date'
+          rrule:
+            anyOf:
+              - $ref: '#/$defs/recurringDate'
+              - $type: array
+                items:
+                  $ref: '#/$defs/recurringDate'
+      - type: object
+        properties:
+          first:
+            $ref: '#/$defs/date'
+          recurEvery:
+            $ref: '#/$defs/durationWholeDays'
+        required: [first, recurEvery]
+        additionalProperties: false
+
+  period:
+    # By vague reference to "Periods" in RFC 3339 Appendix A.  A period is
+    # specified by exactly two of its start, end and duration.
+    type: object
+    properties:
+      start:
+        $ref: '#/$defs/dateOrDatetime'
+      end:
+        $ref: '#/$defs/dateOrDatetime'
+      duration:
+        $ref: '#/$defs/duration'
+    additionalProperties: false
+    minProperties: 2
+    maxProperties: 2
+
+  periodWholeDays:
+    $comment: >
+      A period includes the start and/or end date; durations are inclusive of
+      the start or end date.  Thus the following are all equivalent and include
+      both the 1st and 2nd of January 2020:
+
+        {"start": "2020-01-01", "end": "2020-01-02"}
+
+        {"start": "2020-01-02", "duration": "P2D"}
+
+        {"duration": "P2D", "end": "2020-01-02"}
+    type: object
+    properties:
+      start:
+        $ref: '#/$defs/date'
+      end:
+        $ref: '#/$defs/date'
+      duration:
+        $ref: '#/$defs/durationWholeDays'
+    additionalProperties: false
+    minProperties: 2
+    maxProperties: 2
+
+  recurringPeriod:
+    type: object
+    properties:
+      start:
+        $ref: '#/$defs/recurringDatetime'
+      duration:
+        $ref: '#/$defs/duration'
+    required: [start, duration]
+    additionalProperties: false
+
+  recurringWholeDayPeriod:
+    type: object
+    properties:
+      start:
+        $ref: '#/$defs/recurringDate'
+      duration:
+        $ref: '#/$defs/durationWholeDays'
+    required: [start, duration]
+    additionalProperties: false
 
   task:
     type: object
     properties:
 
       title:
-        description: Title of the task.
         type: string
 
-      id:
-        description: Unique ID for the task.
-        $comment: >-
-          Automated tools SHOULD populate this if it isn't already specified,
-          and MAY use any valid mechanism for doing so.
+      uuid:
+        $comment: Populate this if it's not set already.
         type: string
         format: uuid
 
       state:
-        description: The state the task is in.
         $comment: >
-          If this is not specified explicitly, automated tools MUST assume the
-          value as follows:
+          If unspecified, assume "todo" unless there is a descendent task
+          that's set to "placeholder", in which case assume "placeholder".
 
-          - If this is the root task, it is a placeholder.
-
-          - If this is a task that has children and any of the children are
-          (implicitly or explicitly) placeholders, this task is a placeholder.
-
-          - Otherwise, this task is a todo.
-
-          As to automated tools changing between implicit and explicit
-          specification of this value:
-
-          - If this is the root task, tools SHOULD remove the value.
-
-          - If this is an implicit placeholder other than the root task, tools
-          SHOULD record the state explicitly.
-
-          - Otherwise, tools MAY change between implicit and explicit todo
-          states, but tools that make such changes SHOULD make it possible to
-          disable making such changes automatically, and MAY make it
-          configurable what sort of changes they make.
+          Populate as "placeholder" if it's not already set, remove explicit
+          "todo" if it is set.
 
         enum: [placeholder, todo, done, dropped]
 
       created:
-        description: The date and time the task was created.
         $comment: >-
-          Automated tools SHOULD set this if it is unset to any reasonable
-          value, typically either the current time or -- if the data is read
-          from a file -- the last modification time of that file.
+          Set if it's unset according to our best guess; probably the file's
+          last modification time or the current time.
         $ref: '#/$defs/datetime'
 
-      due:
+      ended:
+        $comment: >-
+          Set if it's unset and the task is done or dropped according to our
+          best guess; probably the file's last modification time or the current
+          time.  Remove if the task is a placeholder or a todo.
+        $ref: '#/$defs/datetime'
+
+      wait:
         description: >-
-          The date or date and time when the task is due.  Dates without a time
-          are assumed to be due by the end of that day.
+          The inverse of "due": when should the task not be started before?
+        $comment: >
+          If this is a date, take it to mean the start of the day.
+
+          This value is inherited by child tasks that don't have it set
+          explicitly.  Child tasks that do set it explicitly must have it set
+          to a time that is no earlier than that on the parent task.
+        $ref: '#/$defs/dateOrDatetime'
+
+      due:
+        $comment: >
+          If this is a date, take it to mean the end of the day.
+
+          This value is inherited by child tasks that don't have it set
+          explicitly.  Child tasks that do set it explicitly must have it set
+          to a time that is no later than that on the parent task.
+        $ref: '#/$defs/dateOrDatetime'
+
+      repetitionTemplate:
         type: string
-        anyOf:
-          - $ref: '#/$defs/datetime'
-          - $ref: '#/$defs/date'
+        format: uuid
 
       children:
-        description: List of subtasks of this task.
+        type: array
+        items:
+          $ref: '#/$defs/task'
+
+      completeChildrenInSequence:
+        description: Whether child tasks must be completed in order.
         $comment: >-
-          Automated tools MAY remove this element if it is empty.  If this
-          object is a single task rather than an array of tasks, automated
-          tools SHOULD convert it to a singleton array.  Automated tools MAY
-          reorder elements of the array.
-        anyOf:
-          - type: array
-            items:
-              $ref: '#/$defs/task'
-          - $ref: '#/$defs/task'
+          This value is inherited by child tasks.  If unspecified, it defaults
+          to false.
+        type: boolean
 
       requires:
-        description: List of task IDs that must be completed before this task.
-        $comment: >-
-          Automated tools MAY remove this element if it is empty.  If this
-          object is a single ID rather than an array of IDs, automated tools
-          SHOULD convert it to a singleton array.  If the array contains
-          duplicates, automated tools SHOULD remove those duplicates.
-          Automated tools MAY reorder elements in the array.
-        anyOf:
-          - type: array
-            items:
-              type: string
-              format: uuid
-          - type: string
-            format: uuid
+        description: >-
+          Tasks that must be completed before this task can be completed.
+        $comment: >
+          Remove duplicates.
+
+          This value is inherited by child tasks.  Child tasks that have it set
+          explicitly have the explicit values in addition to values from the
+          parent tasks.  If a child has a task here that is also on a parent
+          task, it can be removed from the child.
+        type: array
+        items:
+          type: string
+          format: uuid
 
       blocks:
-        description: List of task IDs that cannot be completed before this task.
+        description: >
+          Tasks that cannot be completed before this task is completed.
         $comment: >-
-          Automated tools MAY normalise tasks by removing this property and
-          instead populating the 'requires' properties on the referenced tasks.
-          Automated tools SHOULD NOT normalise tasks in the inverse fashion.
-          Automated tools MAY remove this element if it is empty.  If it
-          contains a single ID, automated tools SHOULD convert it to a
-          singleton array.  If the array contains duplicates, automated tools
-          SHOULD remove those duplicates.  Automated tools MAY reorder elements
-          in the array.
-        anyOf:
-          - type: array
-            items:
-              type: string
-              format: uuid
-          - type: string
-            format: uuid
+          Remove this element if it appears, and populate the corresponding
+          "requires" properties instead.  That means inheritence isn't
+          relevant.
+        type: array
+        items:
+          type: string
+          format: uuid
 
-      notes:
-        description: Notes attached to the task.
-        $comment: >-
-          Automated tools SHOULD NOT make any assumptions about the content of
-          this property.
-        type: string
+      notes: {type: string}
 
       contexts:
         description: The context or contexts in which this task can be completed.
-        $comment: If this is a string, automated tools MAY convert it to a singleton
-          list.  If this is a list with duplicate values, automated tools MAY remove
-          the duplicates.  Automated tools MAY reorder the list.
-        anyOf:
-          - type: array
-            items:
-              type: string
-          - type: string
+        $comment: Remove duplicates.
+        type: array
+        items:
+          type: string
 
-      base_urgency:
+      times:
+        description: Times the task is available.
+        $comment: >-
+          If this isn't set, assume the task is always available.  If this is
+          the empty list, assume it's never available.
+        type: array
+        items:
+          $ref: '#/$defs/timeperiodSequence'
+
+      baseUrgency:
         description: The starting urgency score for the task.
+        $comment: This value is inherited by child tasks.
         type: number
 
-      age_urgency_factor:
+      ageUrgencyFactor:
         description: The amount the urgency increases each day.
+        $comment: This value is inherited by child tasks.
         type: number
 
-      age_urgency_max:
-        description: The maximum amount the urgency can be increased by due to task
-          age.
-        type: number
+      ageUrgencyMax:
+        description: >-
+          The maximum amount the urgency can be increased by due to task age.
+        $comment: This value is inherited by child tasks.
+        type: [number, 'null']
 
-      blocking_any_urgency_factor:
-        description: The amount the urgency is increased by if this task is a blocking
-          task.
+      urgency:
+        $comment: >-
+          The application can populate this so the user can see the calculated
+          urgency.
         type: number
-
-      blocking_each_urgency_factor:
-        description: The amount the urgency is increased by for each task this task
-          is blocking.
-        type: number
-
-      blocking_each_urgency_max:
-        description: The maximum amount the urgency can be increased by because of
-          blocking multiple tasks.
-        type: number
+        readOnly: true
 
     additionalProperties: false
 
-  state-checker:
+  _repeatingTaskCommon:
+    description: >
+      A single repeating task.  Looks a lot like a regular task, except some
+      values aren't relevant and others are durations to set the actual
+      datetime relative to some anchor point.
+
+      Except where noted, details are the same as for a regular task.
+    type: object
+    properties:
+
+      title: {type: string}
+
+      uuid:
+        $comment: Populate this if it's not set already.
+        type: string
+        format: uuid
+
+      parent:
+        # TODO Work out more implementation details.
+        $comment: The task that this task should appear under.
+        type: string
+        format: uuid
+
+      wait:
+        anyOf:
+          - $ref: '#/$defs/duration'
+          - $ref: '#/$defs/durationWholeDays'
+
+      due:
+        anyOf:
+          - $ref: '#/$defs/duration'
+          - $ref: '#/$defs/durationWholeDays'
+
+      children:
+        type: array
+        items:
+          $ref: '#/$defs/repeatingTaskChild'
+
+      completeChildrenInSequence:
+        $ref: '#/$defs/task/properties/completeChildrenInSequence'
+
+      requires:
+        # TODO Document restrictions here: I think the UUIDs here can be either
+        # (a) repeating tasks within the same set of repeating tasks, at which
+        # point they get converted to instance UUIDs at the point the tasks are
+        # created, or (b) task UUIDs, which remain constant.
+        $ref: '#/$defs/task/properties/requires'
+
+      blocks:
+        # TODO Document restrictions here: I think the UUIDs here can be either
+        # (a) repeating tasks within the same set of repeating tasks, at which
+        # point they get converted to instance UUIDs at the point the tasks are
+        # created, or (b) task UUIDs, which remain constant.
+        $ref: '#/$defs/task/properties/blocks'
+
+      notes:
+        $ref: '#/$defs/task/properties/notes'
+
+      contexts:
+        $ref: '#/$defs/task/properties/contexts'
+
+      times:
+        $ref: '#/$defs/task/properties/times'
+
+      baseUrgency:
+        $ref: '#/$defs/task/properties/baseUrgency'
+
+      ageUrgencyFactor:
+        $ref: '#/$defs/task/properties/ageUrgencyFactor'
+
+      ageUrgencyMax:
+        $ref: '#/$defs/task/properties/ageUrgencyMax'
+
+    additionalProperties: false
+
+  repeatingTaskRoot:
+    $ref: '#/$defs/_repeatingTaskCommon'
+    required: [parent]
+
+  repeatingTaskChild:
+    $ref: '#/$defs/_repeatingTaskCommon'
+    properties: {parent: false}
+
+  repetitionTemplate:
+    $comment: >-
+      If this is a task that occurs on a regular schedule (e.g. pay the rent
+      every month), use the schedule property.  If this is a task that wants to
+      be completed some time after the last completion (e.g. clean the shower),
+      use the repeatAfter property.
+    properties:
+      uuid:
+        $comment: Populate this if it's not set already.
+        type: string
+        format: uuid
+      taskRoots:
+        type: array
+        items:
+          $ref: '#/$defs/repeatingTaskRoot'
+      schedule:
+        anyOf:
+          - $ref: '#/$defs/recurringDatetime'
+          - $ref: '#/$defs/recurringDate'
+      repeatAfter:
+        $ref: '#/$defs/duration'
+    required: [uuid, taskRoots]
+    anyOf:
+      - required: [schedule]
+      - required: [repeatAfter]
+    additionalProperties: false
+
+  stateChecker:
     $comment: >-
       This exists to perform recursive validation of the state of tasks,
       ensuring that placeholder tasks only occur as children of other
@@ -617,9 +850,9 @@ $defs:
         children:
           items:
             anyOf:
-              - $ref: '#/$defs/state-checker/placeholder'
-              - $ref: '#/$defs/state-checker/todo'
-              - $ref: '#/$defs/state-checker/done-dropped'
+              - $ref: '#/$defs/stateChecker/doneOrDropped'
+              - $ref: '#/$defs/stateChecker/todo'
+              - $ref: '#/$defs/stateChecker/placeholder'
       required: [children]
 
     todo:
@@ -631,10 +864,10 @@ $defs:
         children:
           items:
             anyOf:
-              - $ref: '#/$defs/state-checker/todo'
-              - $ref: '#/$defs/state-checker/done-dropped'
+              - $ref: '#/$defs/stateChecker/todo'
+              - $ref: '#/$defs/stateChecker/doneOrDropped'
 
-    done-dropped:
+    doneOrDropped:
       $comment: >-
         Done or dropped tasks must only have other done or dropped tasks as
         children; users must either complete or drop child tasks before they
@@ -644,5 +877,5 @@ $defs:
           enum: [done, dropped]
         children:
           items:
-            $ref: '#/$defs/check_done_dropped_descendent_states'
+            $ref: '#/$defs/doneOrDropped'
       required: [state]
